@@ -108,10 +108,18 @@ const OAuthConsent = () => {
 				window.location.assign(data.redirect_url);
 				return;
 			}
+			// Stored first, so the request can still be refused if environments fail to load.
+			setDetails(data);
 
-			// getAllEnvironments answers a failed request with an empty list too.
-			const { environments: available } = await EnvironmentApi.getAllEnvironments();
+			// getAllEnvironments returns an empty list on failure; retry once after a short pause.
+			let available = (await EnvironmentApi.getAllEnvironments()).environments;
 			if (cancelled) return;
+			if (!available?.length) {
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+				if (cancelled) return;
+				available = (await EnvironmentApi.getAllEnvironments()).environments;
+				if (cancelled) return;
+			}
 			if (!available?.length) {
 				setProblem({ key: 'oauthConsent.noEnvironments' });
 				return;
@@ -120,7 +128,6 @@ const OAuthConsent = () => {
 			const active = EnvironmentApi.getActiveEnvironmentId();
 			setEnvironments(available);
 			setEnvironmentId(available.some((environment) => environment.id === active) ? active : available[0].id);
-			setDetails(data);
 		};
 		load().catch(() => {
 			if (!cancelled) setProblem({ key: 'oauthConsent.loadFailed' });
@@ -132,13 +139,14 @@ const OAuthConsent = () => {
 	}, [authorizationId, location.pathname, location.search, navigate]);
 
 	const decide = async (decision: Decision) => {
-		if (!authorizationId || !details || !environmentId) return;
+		// Refusing doesn't need an environment.
+		if (!authorizationId || !details || (decision === 'approve' && !environmentId)) return;
 		setPending(decision);
 		setDecisionProblem(null);
 		try {
 			// Saved first: the token is issued right after the approval, and it has
 			// to carry the choice.
-			if (decision === 'approve') await saveEnvironmentChoice(details.client.id, environmentId);
+			if (decision === 'approve' && environmentId) await saveEnvironmentChoice(details.client.id, environmentId);
 
 			// skipBrowserRedirect: this page does the navigation itself, so a
 			// failure can be shown here instead of leaving a blank tab.
@@ -157,6 +165,14 @@ const OAuthConsent = () => {
 			setDecisionProblem(message ? { message } : { key: 'oauthConsent.decisionFailed' });
 			setPending(null);
 		}
+	};
+
+	// Sign out fully, SSO token included (else /auth skips to the dashboard), and return here after login.
+	const signInAgain = async () => {
+		await supabase.auth.signOut({ scope: 'local' });
+		localStorage.removeItem('token');
+		const returnTo = encodeURIComponent(location.pathname + location.search);
+		navigate(`${RouteNames.auth}?redirect=${returnTo}`, { replace: true });
 	};
 
 	const text = (p: Problem) => ('key' in p ? t(p.key) : p.message);
@@ -200,12 +216,37 @@ const OAuthConsent = () => {
 						</div>
 
 						{problem || !details || !environmentId ? (
-							<div className='space-y-2 text-center text-sm'>
-								<p role='alert' className='font-medium text-danger'>
-									{problem && text(problem)}
-								</p>
-								<p className='text-content-zinc-muted'>{t('oauthConsent.startAgain')}</p>
-							</div>
+							<>
+								<div className='space-y-2 text-center text-sm'>
+									<p role='alert' className='font-medium text-danger'>
+										{problem && text(problem)}
+									</p>
+									{!details && <p className='text-content-zinc-muted'>{t('oauthConsent.startAgain')}</p>}
+								</div>
+								{/* The request loaded but its environments didn't: sign in again, or refuse it. */}
+								{details && (
+									<div className='mt-8'>
+										{decisionProblem && (
+											<p role='alert' className='mb-4 text-center text-sm text-danger'>
+												{text(decisionProblem)}
+											</p>
+										)}
+										<div className='flex gap-3'>
+											<Button
+												variant='outline'
+												className='h-10 flex-1 rounded-lg'
+												onClick={() => decide('deny')}
+												disabled={pending !== null}
+												isLoading={pending === 'deny'}>
+												{t('oauthConsent.deny')}
+											</Button>
+											<Button className='h-10 flex-1 rounded-lg' onClick={signInAgain} disabled={pending !== null}>
+												{t('oauthConsent.signInAgain')}
+											</Button>
+										</div>
+									</div>
+								)}
+							</>
 						) : (
 							<>
 								{/* The app's name is one piece, so a title too long for a single line breaks
