@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { EyeIcon, EyeOff } from 'lucide-react';
 import { Button, Dialog, Input } from '@/components/atoms';
 import { UserApi } from '@/api/UserApi';
-import { newPasswordError } from '@/pages/auth/passwordLink';
+import { newPasswordError } from '@/utils/auth/newPassword';
 
 interface ChangePasswordDialogProps {
 	isOpen: boolean;

@@ -6,8 +6,9 @@ import { EyeIcon, EyeOff, Link2Off } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button, Input } from '@/components/atoms';
 import AuthApi from '@/api/AuthApi';
+import { newPasswordError } from '@/utils/auth/newPassword';
 import { AuthTab } from './authTabs';
-import { newPasswordError, readPasswordLinkToken } from './passwordLink';
+import { readPasswordLinkToken } from './passwordLink';
 
 interface SetPasswordFormProps {
 	switchTab: (tab: AuthTab) => void;
