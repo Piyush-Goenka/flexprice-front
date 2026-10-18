@@ -66,7 +66,12 @@ const ChangePasswordDialog = ({ isOpen, email, onClose }: ChangePasswordDialogPr
 			title={t('changePassword.title')}
 			description={t('changePassword.description', { email })}
 			className='w-full max-w-[440px] rounded-xl border border-line-subtle shadow-lg'>
-			<form className='mt-3 space-y-4' onSubmit={(e) => e.preventDefault()}>
+			<form
+				className='mt-3 space-y-4'
+				onSubmit={(e) => {
+					e.preventDefault();
+					handleSubmit();
+				}}>
 				<Input
 					id='change-password-new'
 					name='new-password'
@@ -89,7 +94,7 @@ const ChangePasswordDialog = ({ isOpen, email, onClose }: ChangePasswordDialogPr
 					value={confirmPassword}
 				/>
 				<div className='flex justify-end'>
-					<Button type='button' onClick={handleSubmit} isLoading={changePassword.isPending}>
+					<Button type='submit' isLoading={changePassword.isPending}>
 						{t('changePassword.submit')}
 					</Button>
 				</div>

@@ -48,7 +48,7 @@ const SidebarFooter = () => {
 		...(config.app.env === APP_ENV.SelfHosted
 			? [
 					{
-						label: 'Change password',
+						label: t('labels.changePassword'),
 						icon: KeyRound,
 						onClick: () => setChangePasswordOpen(true),
 					},

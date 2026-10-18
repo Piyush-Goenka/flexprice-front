@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { EyeIcon, EyeOff, Link2Off } from 'lucide-react';
+import { EyeIcon, EyeOff, Link2Off, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button, Input } from '@/components/atoms';
 import AuthApi from '@/api/AuthApi';
+import { getHttpStatus } from '@/core/axios/types';
 import { newPasswordError } from '@/utils/auth/newPassword';
 import { AuthTab } from './authTabs';
 import { readPasswordLinkToken } from './passwordLink';
@@ -80,18 +81,37 @@ const SetPasswordForm: React.FC<SetPasswordFormProps> = ({ switchTab }) => {
 		);
 	}
 
-	if (!token || linkQuery.isError || !linkQuery.data) {
-		return (
-			<>
-				<div className='rounded-xl border border-line/80 bg-surface-subtle/50 p-6 text-center shadow-sm'>
-					<div className='mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-warning-muted-strong'>
-						<Link2Off className='h-6 w-6 text-warning' aria-hidden />
-					</div>
-					<h3 className='text-base font-medium text-content-heading'>{t('setPassword.invalidTitle')}</h3>
-					<p className='mt-1.5 text-sm text-content-muted'>{t('setPassword.invalidDescription')}</p>
-				</div>
-				{backToLogin}
-			</>
+	const linkProblem = (icon: React.ReactNode, title: string, description: string, action?: React.ReactNode) => (
+		<>
+			<div className='rounded-xl border border-line/80 bg-surface-subtle/50 p-6 text-center shadow-sm'>
+				<div className='mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-warning-muted-strong'>{icon}</div>
+				<h3 className='text-base font-medium text-content-heading'>{title}</h3>
+				<p className='mt-1.5 text-sm text-content-muted'>{description}</p>
+				{action}
+			</div>
+			{backToLogin}
+		</>
+	);
+
+	// The server answers every expired, used or unknown link with 404.
+	if (!token || getHttpStatus(linkQuery.error) === 404) {
+		return linkProblem(
+			<Link2Off className='h-6 w-6 text-warning' aria-hidden />,
+			t('setPassword.invalidTitle'),
+			t('setPassword.invalidDescription'),
+		);
+	}
+
+	// Anything else (no response, a server error) says nothing about the link, and the
+	// token has already left the address bar, so offer a retry rather than a dead end.
+	if (linkQuery.isError || !linkQuery.data) {
+		return linkProblem(
+			<RefreshCw className='h-6 w-6 text-warning' aria-hidden />,
+			t('setPassword.checkFailedTitle'),
+			t('setPassword.checkFailedDescription'),
+			<Button variant='outline' className='mt-4' onClick={() => linkQuery.refetch()} isLoading={linkQuery.isFetching}>
+				{t('setPassword.retry')}
+			</Button>,
 		);
 	}
 
@@ -106,7 +126,12 @@ const SetPasswordForm: React.FC<SetPasswordFormProps> = ({ switchTab }) => {
 			<p className='text-center text-content-tertiary mb-8'>
 				{isInvite ? t('setPassword.inviteSubheading', { email }) : t('setPassword.resetSubheading', { email })}
 			</p>
-			<form className='space-y-4' onSubmit={(e) => e.preventDefault()}>
+			<form
+				className='space-y-4'
+				onSubmit={(e) => {
+					e.preventDefault();
+					handleSubmit();
+				}}>
 				<div>
 					<label htmlFor='new-password' className='block text-sm font-medium text-content-secondary mb-1'>
 						{t('fields.newPassword')}
@@ -155,7 +180,7 @@ const SetPasswordForm: React.FC<SetPasswordFormProps> = ({ switchTab }) => {
 						}
 					/>
 				</div>
-				<Button type='button' onClick={handleSubmit} className='w-full !mt-6 h-11' isLoading={setPasswordMutation.isPending}>
+				<Button type='submit' className='w-full !mt-6 h-11' isLoading={setPasswordMutation.isPending}>
 					{t('setPassword.submit')}
 				</Button>
 			</form>
